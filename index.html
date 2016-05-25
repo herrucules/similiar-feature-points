@@ -41,6 +41,7 @@
       <p>Pilih dua gambar untuk dibandingkan kesamaannya berdasarkan fitur titik pada tepi.</p>
       Gambar 1 <input type="file" id="image1">
       Gambar 2 <input type="file" id="image2">
+
       <canvas id="canvas" width="786" height="295"></canvas>
       <div id="params">
         Panjang deskriptor (BRIEF) = 
@@ -136,6 +137,10 @@
 
       var URL = window.webkitURL || window.URL;
       var url = URL.createObjectURL(evt.target.files[0]);
+      drawImage(url, evt);
+    }
+
+    window.drawImage = function(url, evt) {
       var img = new Image();
       img.src = url;
 
@@ -170,7 +175,7 @@
           }
         }
 
-        if (evt.target == document.getElementById('image1')) {
+        if (evt.target == document.getElementById('image1') || evt == 'img1') {
           context.clearRect(0, 0, width, height);
           context.drawImage(img, 0, 0, img_width, img_height);
           img1Choosen = true;

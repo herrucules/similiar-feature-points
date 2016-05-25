@@ -6,19 +6,31 @@
   <script src="libs/tracking-min.js"></script>
   <style>
   .demo-container {
-    background-color: black;
+    width: 786px;
+    margin:0 auto;
   }
-  #image1, #image2 {
+  /*#image1, #image2 {
     position: absolute;
     left: -1000px;
     top: -1000px;
-  }
+  }*/
   #canvas {
-    position: absolute;
+    /*position: absolute;
     left: 50%;
     top: 50%;
     margin-left: -393px;
-    margin-top: -147px;
+    margin-top: -147px;*/
+    border: 1px solid #ccc;
+  }
+  #params {
+    float:right;
+    background: #f0f0f0;
+    padding: 10px;
+    width: 50%;
+  }
+  #log {
+    height: 300px;
+    overflow: auto;
   }
   </style>
 </head>
@@ -26,26 +38,178 @@
 <body>
   <div class="demo-frame">
     <div class="demo-container">
-      <img id="image1" src="assets/brief1.png" />
-      <img id="image2" src="assets/brief2.png" />
+      <p>Pilih dua gambar untuk dibandingkan kesamaannya berdasarkan fitur titik pada tepi.</p>
+      Gambar 1 <input type="file" id="image1">
+      Gambar 2 <input type="file" id="image2">
       <canvas id="canvas" width="786" height="295"></canvas>
+      <div id="params">
+        Panjang deskriptor (BRIEF) = 
+        <select name="" id="BRIEFdescriptorLength">
+          <option value="128">128</option>
+          <option value="256" selected>256</option>
+          <option value="512">512</option>
+        </select>
+        <br>
+        Threshold (FAST) u/ corner edge detection = 
+        <input type="number" id="FASTthreshold" value="40" min="0" max="100">
+
+        <hr>
+        <strong>Anggota Kelompok:</strong>
+        <ul>
+          <li>Ariani Indrawati – 1701498894 </li>
+          <li>Herru Darmadi – 1701498370</li>
+          <li>Kornelius Irfandhi – 1701498906</li>
+          <li>Yoanes Berchmans – 1701498553</li>
+        </ul>
+        <a href="">
+          View source          
+        </a>
+        <br><br>
+        <em>Referensi:</em>
+        <ol>
+          <li>Calonder, M., Lepetit, V., Strecha, C., &amp; Fua, P. (2010). BRIEF: Binary Robust Independent Elementary Features. <em>Proceedings of the 11th European Conference on Computer Vision: Part IV</em> (pp. 778--792). Heraklion, Crete, Greece: Springer-Verlag.</li>
+          <li>
+            Lundgren, E. (2015, December 23). <em>eduardolundgren/tracking.js: A modern approach for Computer Vision on the web.</em> Retrieved from Github.com: https://github.com/eduardolundgren/tracking.js
+          </li>
+          <li>
+            Wikipedia. (2016, May 18). <em>Features from accelerated segment test</em>. Retrieved from Wikipedia: https://en.wikipedia.org/wiki/Features_from_ accelerated_segment_test
+          </li>
+          <li>
+            Wikipedia. (2016, April 27). <em>Hamming Distance</em>. Retrieved from Wikipedia: https://en.wikipedia.org/wiki/Hamming_distance
+          </li>
+        </ol>
+      </div>
+      <div id="log"></div>
+      
     </div>
   </div>
   <script>
+  var fileAPIready = false;
+  // Check for the various File API support.
+  if (window.File && window.FileReader && window.FileList && window.Blob) {
+    // Great success! All the File APIs are supported.
+    fileAPIready = true;
+  } else {
+    alert('The File APIs are not fully supported in this browser.');
+  }
+
   window.onload = function() {
+    // if (!fileAPIready) return;
+
     var width = 393;
     var height = 295;
     var canvas = document.getElementById('canvas');
     var context = canvas.getContext('2d');
-    var image1 = document.getElementById('image1');
-    var image2 = document.getElementById('image2');
+    // var image1 = document.getElementById('image1');
+    // var image2 = document.getElementById('image2');
+
+    var image1, image2;
+    var img1Choosen = false, img2Choosen = false;
+    var htmlLog = '';
+    var matches;
+
+    document.getElementById('FASTthreshold').addEventListener('change', paramsChange, false);
+    document.getElementById('BRIEFdescriptorLength').addEventListener('change', paramsChange, false);
+
+    function paramsChange(evt) {
+      descriptorLength = document.getElementById('BRIEFdescriptorLength').value;
+      tracking.Fast.THRESHOLD = document.getElementById('FASTthreshold').value;
+
+      if (img1Choosen && img2Choosen) {
+        context.clearRect(0, 0, width, height);
+        context.drawImage(image1, 0, 0, image1.width, image1.height);
+        context.clearRect(width, 0, width, height);
+        context.drawImage(image2, width, 0, image2.width, image2.height);
+
+        doMatch();        
+      } 
+
+    }
+
+    // image input handling
+    document.getElementById('image1').addEventListener('change', handleFileSelect, false);
+    document.getElementById('image2').addEventListener('change', handleFileSelect, false);
+
+    function handleFileSelect(evt) {
+
+      if (evt.target.files[0] == undefined) return;
+
+      var URL = window.webkitURL || window.URL;
+      var url = URL.createObjectURL(evt.target.files[0]);
+      var img = new Image();
+      img.src = url;
+
+      img.onload = function() {
+        var img_width = img.width;
+        var img_height = img.height;
+
+        var ratio = img_width / img_height;
+        if (ratio > 1) {
+          // wide image
+          if (img_width != width) {
+            ratio = width / img_width;
+            img_width = img_width * ratio;
+            img_height = img_height * ratio;
+          }
+          if (img_height > height) {
+            ratio = height / img_height;
+            img_width = img_width * ratio;
+            img_height = img_height * ratio;
+          }
+        } else {
+          // taller image
+          if (img_height != height) {
+            ratio = height / img_height;
+            img_width = img_width * ratio;
+            img_height = img_height * ratio;
+          }
+          if (img_width > width) {
+            ratio = width / img_width;
+            img_width = img_width * ratio;
+            img_height = img_height * ratio;
+          }
+        }
+
+        if (evt.target == document.getElementById('image1')) {
+          context.clearRect(0, 0, width, height);
+          context.drawImage(img, 0, 0, img_width, img_height);
+          img1Choosen = true;
+          image1 = img;
+          image1.width = img_width;
+          image1.height = img_height;
+          if (img2Choosen) {
+            context.clearRect(width, 0, width, height);
+            context.drawImage(image2, width, 0, image2.width, image2.height);
+          }
+        }
+        else {
+          context.clearRect(width, 0, width, height);
+          context.drawImage(img, width, 0, img_width, img_height);
+          image2 = img;
+          image2.width = img_width;
+          image2.height = img_height;
+          img2Choosen = true;
+          if (img1Choosen) {
+            context.clearRect(0, 0, width, height);
+            context.drawImage(image1, 0, 0, image1.width, image1.height);
+          }
+        }
+
+        if (img1Choosen && img2Choosen) doMatch();
+      }
+    }
+    // end image input handling
+
+
     window.descriptorLength = 256;
-    window.matchesShown = 30;
+    window.matchesShown = 10;
     window.blurRadius = 3;
-    var doMatch = function() {
+    window.doMatch = function() {
       tracking.Brief.N = window.descriptorLength;
-      context.drawImage(image1, 0, 0, width, height);
-      context.drawImage(image2, width, 0, width, height);
+
+      // dynamic
+      // context.drawImage(image1, 0, 0, width, height);
+      // context.drawImage(image2, width, 0, width, height);
   
       var imageData1 = context.getImageData(0, 0, width, height);
       var imageData2 = context.getImageData(width, 0, width, height);
@@ -53,35 +217,56 @@
       var gray1 = tracking.Image.grayscale(tracking.Image.blur(imageData1.data, width, height, blurRadius), width, height);
       var gray2 = tracking.Image.grayscale(tracking.Image.blur(imageData2.data, width, height, blurRadius), width, height);
   
+      // tracking.Fast.THRESHOLD = 20;
       var corners1 = tracking.Fast.findCorners(gray1, width, height);
       var corners2 = tracking.Fast.findCorners(gray2, width, height);
   
       var descriptors1 = tracking.Brief.getDescriptors(gray1, width, corners1);
       var descriptors2 = tracking.Brief.getDescriptors(gray2, width, corners2);
   
-      var matches = tracking.Brief.reciprocalMatch(corners1, descriptors1, corners2, descriptors2);
+      matches = tracking.Brief.reciprocalMatch(corners1, descriptors1, corners2, descriptors2);
       matches.sort(function(a, b) {
         return b.confidence - a.confidence;
       });
-  
-      for (var i = 0; i < Math.min(window.matchesShown, matches.length); i++) {
+
+      console.log(matches.length);
+      htmlLog = "Jumlah kesamaan: "+ matches.length + "<br>";
+    
+      // for (var i = 0; i < Math.min(window.matchesShown, matches.length); i++) {
+      for (var i = 0; i < matches.length; i++) {
         var color = '#' + Math.floor(Math.random()*16777215).toString(16);
         context.fillStyle = color;
         context.strokeStyle = color;
+        context.lineWidth = 1;  
         context.fillRect(matches[i].keypoint1[0], matches[i].keypoint1[1], 4, 4);
         context.fillRect(matches[i].keypoint2[0] + width, matches[i].keypoint2[1], 4, 4);
         context.beginPath();
         context.moveTo(matches[i].keypoint1[0], matches[i].keypoint1[1]);
         context.lineTo(matches[i].keypoint2[0] + width, matches[i].keypoint2[1]);
         context.stroke();
+        matches[i].color = color;
+
+        // console.log(matches[i]);
+        htmlLog += '<a href="#"><span onmouseenter="focusLine('+i+')">Kesamaan ke-'+(i+1)+' - confidence lvl: '+ matches[i].confidence + '</span></a><br>';
+        
       }
+      document.getElementById('log').innerHTML = htmlLog;
     };
-    doMatch();
-    // var gui = new dat.GUI();
-    // gui.add(window, 'descriptorLength', 128, 512).step(32).onChange(doMatch);
-    // gui.add(window, 'matchesShown', 1, 100).onChange(doMatch);
-    // gui.add(window, 'blurRadius', 1.1, 5).onChange(doMatch);
+
+    window.focusLine = function (i) {
+      
+      var color = matches[i].color;
+      context.fillStyle = color;
+      context.strokeStyle = color;   
+      context.lineWidth = 5;   
+      context.beginPath();
+      context.moveTo(matches[i].keypoint1[0], matches[i].keypoint1[1]);
+      context.lineTo(matches[i].keypoint2[0] + width, matches[i].keypoint2[1]);
+      context.stroke();
+    };
+
   }
+
   </script>
 </body>
 </html>
